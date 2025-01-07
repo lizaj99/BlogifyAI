@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generate Blogs 🍄</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="dropdown">
+        {% if username %}
+            <button class="dropbtn">{{ username }}</button>
+            <div class="dropdown-content">
+                <form action="{{ url_for('logout') }}" method="POST" style="margin: 0;">
+                    <button type="submit">Logout</button>
+                </form>
+            </div>
+        {% endif %}
+    </div>
+
+    <h1>Welcome to Blogify AI 🍄</h1>
+
+    <!-- Blog Generation Form -->
+    <form id="blogForm" action="/submit_blog" method="POST">
+        <label for="input_text">Enter the Blog Topic</label>
+        <input type="text" id="input_text" name="input_text" required>
+
+        <label for="no_words">Number of Words</label>
+        <input type="number" id="no_words" name="no_words" required>
+
+        <label for="blog_style">Writing the blog for</label>
+        <select id="blog_style" name="blog_style">
+            <option value="Data Engineer">Data Engineer</option>
+            <option value="Machine Learning Engineer">Machine Learning Engineer</option>
+            <option value="Data Analyst">Data Analyst</option>
+        </select>
+        <button type="submit">Generate Blog And Image</button>
+    </form>
+
+    <!-- Image Generation Form -->
+    <form id="generationForm" style="margin-top: 20px;">
+        <label for="generation_mode">Select Mode</label>
+        <select id="generation_mode" name="generation_mode" required>
+            <option value="text2img">Text-to-Image</option>
+            <option value="img2img">Image-to-Image</option>
+        </select>
+
+        <label for="lora_option">Select LoRA</label>
+        <select id="lora_option" name="lora_option">
+            <option value="No LoRA">No LoRA</option>
+            <option value="lingsha">LoRA For Portrait</option>
+            <option value="Psy">LoRA For Psychodelic Art</option>
+        </select>
+
+        <label for="image_prompt">Enter the Prompt</label>
+        <input type="text" id="image_prompt" name="image_prompt" required>
+
+        <label for="negative_prompt">Negative Prompt</label>
+        <input type="text" id="negative_prompt" name="negative_prompt" required>
+
+        <label for="guidance_scale">Guidance Scale (0 to 10)</label>
+        <input type="range" id="guidance_scale" name="guidance_scale" min="0" max="10" step="0.1" value="5">
+        <span id="guidance_scale_value">5</span>
+
+        <!-- Additional Options for img2img -->
+        <div id="img2img-options" style="display: none; margin-top: 20px;">
+            <label for="uploaded_image">Upload an Image</label>
+            <input type="file" id="uploaded_image" name="uploaded_image" accept="image/*">
+
+            <label for="strength">Strength (0 to 1)</label>
+            <input type="range" id="strength" name="strength" min="0" max="1" step="0.01" value="0.5">
+            <span id="strength_value">0.5</span>
+        </div>
+
+        <label for="num_inference_steps">Number of Inference Steps (40-50)</label>
+        <input type="number" id="num_inference_steps" name="num_inference_steps" required>
+
+        <label for="height">Height</label>
+        <input type="number" id="height" name="height" value="512" required>
+
+        <label for="width">Width</label>
+        <input type="number" id="width" name="width" value="512" required>
+
+        <label for="seed">Seed</label>
+        <input type="number" id="seed" name="seed">
+
+        <button type="button" onclick="submitGenerationForm()">Submit</button>
+    </form>
+
+    <!-- Display Generated Content -->
+    <div id="output-message"></div>
+    <div id="generated-content">
+        <img id="output-image" src="" alt="Generated Image" style="display:none; border:2px solid #333;">
+    </div>
+
+    <script>
+        // Update guidance scale value
+        const guidanceSlider = document.getElementById("guidance_scale");
+        const guidanceValueDisplay = document.getElementById("guidance_scale_value");
+        guidanceSlider.addEventListener("input", () => {
+            guidanceValueDisplay.textContent = guidanceSlider.value;
+        });
+
+        // Update strength slider value
+        const strengthSlider = document.getElementById("strength");
+        const strengthValueDisplay = document.getElementById("strength_value");
+        strengthSlider.addEventListener("input", () => {
+            strengthValueDisplay.textContent = strengthSlider.value;
+        });
+
+        // Show/Hide img2img options based on mode selection
+        const generationMode = document.getElementById("generation_mode");
+        const img2imgOptions = document.getElementById("img2img-options");
+        generationMode.addEventListener("change", () => {
+            img2imgOptions.style.display = generationMode.value === "img2img" ? "block" : "none";
+        });
+
+        // Submit Image Generation Form
+        function submitGenerationForm() {
+            const formData = new FormData();
+            formData.append("mode", document.getElementById("generation_mode").value);
+            formData.append("lora", document.getElementById("lora_option").value);
+            formData.append("prompt", document.getElementById("image_prompt").value);
+            formData.append("negative_prompt", document.getElementById("negative_prompt").value);
+            formData.append("num_inference_steps", document.getElementById("num_inference_steps").value);
+            formData.append("guidance_scale", document.getElementById("guidance_scale").value);
+            formData.append("height", document.getElementById("height").value);
+            formData.append("width", document.getElementById("width").value);
+            formData.append("seed", document.getElementById("seed").value);
+
+            if (generationMode.value === "img2img") {
+                formData.append("strength", document.getElementById("strength").value);
+                const uploadedImage = document.getElementById("uploaded_image").files[0];
+                if (uploadedImage) {
+                    formData.append("uploaded_image", uploadedImage);
+                }
+            }
+
+            fetch("/process_payload", {
+                method: "POST",
+                body: formData,
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.image) {
+                    const img = document.getElementById("output-image");
+                    img.src = `data:image/png;base64,${data.image}`;
+                    img.style.display = "block";
+                    document.getElementById("output-message").innerText = "Image generated successfully!";
+                } else {
+                    document.getElementById("output-message").innerText = data.message || "Error generating image.";
+                }
+            })
+            .catch(error => {
+                console.error("Error:", error);
+                document.getElementById("output-message").innerText = "An error occurred while processing.";
+            });
+        }
+    </script>
+</body>
+</html>
